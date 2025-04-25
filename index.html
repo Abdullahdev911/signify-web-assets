@@ -47,7 +47,6 @@
     });
 
     hands.onResults((results) => {
-      // Resize canvas dynamically to match video aspect
       canvasElement.width = window.innerWidth;
       canvasElement.height = window.innerHeight;
 
@@ -75,15 +74,34 @@
       canvasCtx.restore();
     });
 
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        await hands.send({ image: videoElement });
-      },
-      width: 640,
-      height: 480
-    });
+    // Get rear camera and start MediaPipe
+    async function startCamera() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      const backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[0];
 
-    camera.start();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: backCamera.deviceId
+        },
+        audio: false
+      });
+
+      videoElement.srcObject = stream;
+      videoElement.play();
+
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          await hands.send({ image: videoElement });
+        },
+        width: 640,
+        height: 480
+      });
+
+      camera.start();
+    }
+
+    startCamera();
   </script>
 </body>
 </html>
