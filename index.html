@@ -2,23 +2,42 @@
 <html>
 <head>
   <title>MediaPipe Hands</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+    }
 
+    .input_video {
+      display: none; /* Hide video feed */
+    }
+
+    .output_canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
 </head>
 <body>
   <video class="input_video"></video>
   <canvas class="output_canvas"></canvas>
+
   <script>
     const videoElement = document.getElementsByClassName('input_video')[0];
     const canvasElement = document.getElementsByClassName('output_canvas')[0];
     const canvasCtx = canvasElement.getContext('2d');
 
-    const hands = new Hands({locateFile: (file) => {
-      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-    }});
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
 
     hands.setOptions({
       maxNumHands: 1,
@@ -28,31 +47,42 @@
     });
 
     hands.onResults((results) => {
+      // Resize canvas dynamically to match video aspect
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
+
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.image) {
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+      }
+
       if (results.multiHandLandmarks) {
         for (const landmarks of results.multiHandLandmarks) {
           drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
-                         {color: '#00FF00', lineWidth: 5});
-          drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+            { color: '#00FF00', lineWidth: 5 });
+          drawLandmarks(canvasCtx, landmarks,
+            { color: '#FF0000', lineWidth: 2 });
+        }
+
+        // Send landmark data to React Native WebView
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(results.multiHandLandmarks));
         }
       }
-      canvasCtx.restore();
 
-      // Send landmarks to React Native
-      if (window.ReactNativeWebView && results.multiHandLandmarks) {
-        window.ReactNativeWebView.postMessage(JSON.stringify(results.multiHandLandmarks));
-      }
+      canvasCtx.restore();
     });
 
     const camera = new Camera(videoElement, {
       onFrame: async () => {
-        await hands.send({image: videoElement});
+        await hands.send({ image: videoElement });
       },
       width: 640,
       height: 480
     });
+
     camera.start();
   </script>
 </body>
